@@ -1,39 +1,45 @@
-#!/bin/python
-
+#!/usr/bin/python
 from random import sample, randint, random
-
+import string
+import platform
+import os
 ship = [
-"       .---.   ",
-" =   _/__~0_\_ ",
-"= = (_________)",
+# A = red
+# B = black
+# C = bold yellow
+# D = cyan
+# E = blue
+"       B.---.Z   ",
+" A=   B_/__D~0B_E\B_Z ",
+"A= A= B(C_________ZB)Z",
 ]
 
 north = [
-"    )                     (",
-" ( /(             )   )   )\ )",
-"  )\())    (   ( /(( /(  (()/(       (",
-"((_)\  (  )(  )\())\())  /(_)|       )\  , )",
-" _((_) )\(()\(_))(_))\  (_)) )\   _ ((_)/(/(",
-"| \| |((_)((_) |_| |(_) |_ _((_) | | | ((_)_\\",
-"| .` / _ \ '_|  _| ' \   | |(_-< | |_| | '_ \)",
-"|_|\_\___/_|  \__|_||_| |___/__/  \___/| .__/",
-"                                       |_|",
+"A    )                     (Z",
+"A ( /(             )   )   )\ )Z",
+"A  )\())    (   ( /(( /(  (()/(       (Z",
+"A((_)\  (  )(  )\())\())  /(_)|       )\  , )Z",
+"B _A((B_A) )\(()\(B_A))(B_A))\  A(B_A)) )\   B_A ((B_A)/(/(Z",
+"B| \| |A((B_A)((B_A) B|_| |A(_) B|_ _A((B_A) B| | | A((B_A)B_A\\Z",
+"B| .` / _ \ '_|  _| ' \   | |(_-< | |_| | '_ \)Z",
+"B|_|\_\___/_|  \__|_||_| |___/__/  \___/| .__/Z",
+"B                                       |_|Z",
 ]
 
 stars_1 = [(x,) for x in ",'`.*oXx"]
 stars_2 = [(x,) for x in "#!@()-+:;"]
 stars_3 = [
-("-0-",),
-("- ) -",),
-(" | ",
- "-O-",
- " | ",),
-(" | ",
- "-o-",
- " | ",),
-(" - ",
- "|O|",
- " - ",),
+("A-B0A-Z",),
+("A- B) A-Z",),
+(" A|Z ",
+ "A-BOA-Z",
+ " A|Z ",),
+(" A|Z ",
+ "A-BoA-Z",
+ " A|Z ",),
+("A - Z",
+ "A|BoA|Z",
+ "A - Z",),
 ]
 
 color = dict(
@@ -75,29 +81,98 @@ white           = "\x1b[47m", #set background color to white
 default         = "\x1b[49m", #set background color to default (black)
 )
 
+def getTerminalSize():
+    def ioctl_GWINSZ(fd):
+        try:
+            import fcntl, termios, struct, os
+            cr = struct.unpack('hh', fcntl.ioctl(fd, termios.TIOCGWINSZ, '1234'))
+        except:
+            return None
+        return cr
+    cr = ioctl_GWINSZ(0) or ioctl_GWINSZ(1) or ioctl_GWINSZ(2)
+    if not cr:
+        try:
+            fd = os.open(os.ctermid(), os.O_RDONLY)
+            cr = ioctl_GWINSZ(fd)
+            os.close(fd)
+        except:
+            pass
+    if not cr:
+        try:
+            cr = (env['LINES'], env['COLUMNS'])
+        except:
+            cr = (25, 80)
+    return int(cr[1]), int(cr[0])
+
+(width, height) = getTerminalSize()
+
 reset = color['reset']
 Y = 15
-X = 200
+X = width - 2
 
 empty_space = lambda x, y, z: [[z]*y for foo in xrange(0, x)]
-print_scape = lambda s: "|"+"|\n|".join(["".join(y) for y in s])+"|"
 loaded_dice = lambda w: True if random() <= w else False
 border_top = lambda edge, fill: edge+fill*X+edge
+invisibles = "ABCDEFGHIJKLMNPQRSTUVWXYZ"
+invisible = lambda char: True if char in invisibles else False
 wrap_x = lambda w:w%X
 wrap_y = lambda w:w%Y
+rand_color = lambda: fg.values()[randint(0, len(fg)-1)]
+
+colors_ship = [fg['red'], fg['black'], fg['yellow']+color['bold'], fg['cyan'], fg['blue']]
+colors_north = [rand_color(), rand_color()]
+colorize_ship = lambda x, *args: colorize(x, *colors_ship)
+colorize_north = lambda x, *args: colorize(x, *colors_north)
+
+def sys_info():
+    nun = ('', '', '')
+    linux = platform.linux_distribution() #('Ubuntu', '9.10', 'karmic')
+    mac = platform.mac_ver() # ('10.6.7', ('', '', ''), 'i386')
+    sys = ""
+    if mac != nun:
+        sys = "Mac OS X " + mac[0]
+    if linux != nun:
+        sys = linux
+
+    d = dict(
+        user=os.environ.get("USER"),
+        shell=os.environ.get("SHELL"),
+        home=os.environ.get("HOME"),
+        sys=sys,
+    )
+    info = "%(shell)s || %(user)s@%(home)s || %(sys)s"%d
+    return info
+
+def colorize(chars, *colors):
+    AZ = string.uppercase[:-1]
+    out = chars
+    ittr = zip(AZ, colors)
+    for i in ittr:
+        out = out.replace(i[0], i[1])
+    out = out.replace("Z", reset)
+    return out
+
+
+def print_scape(s):
+    out = []
+
+    for x in s:
+        line = ""
+        for y in x:
+            line = line + (" " if len(y) == 0 else "".join(y))
+        out.append(line+reset)
+    return "|"+"|\n|".join(out)+"|"
+
+
 def write_char(replace, char):
-    if char in fg.values() or char in bg.values():
-        return char+replace
+    if invisible(char):
+        replace.append(char)
+        return replace
     else:
-        if "\x1b" in replace:
-            return replace
-        else:
-            return char
-
-invisible = lambda char: True if char in fg.values() or char in bg.values() else False
+        return [char]
 
 
-scape = empty_space(Y, X, " ")
+scape = empty_space(Y, X, [])
 def get_star():
     roll = random()
     if roll < .6:
@@ -108,51 +183,49 @@ def get_star():
         stars = stars_3
     return stars[int(roll*100%len(stars))]
 
-def add_star(x, y, star):
-    # star = colorize(star)
+
+def add_star(x, y, star, color_func=colorize):
     i = 0
-    for col in star:
-        j = 0
-        jp = 0
-        for row in col:
-            s = star[i][j]
-            scape[wrap_y(y+i)][wrap_x(x+jp)] = write_char(scape[wrap_y(y+i)][wrap_x(x+jp)], s)
-            if not invisible(s):
-                jp += 1
-            j+=1
-        i += 1
+    j = 0
+    jp = 0
 
-def rand_color():
-    return fg.values()[randint(0, len(fg)-1)]
+    c1 = rand_color()
+    c2 = rand_color()
+    c3 = rand_color()
+    
+    while True:
+        s = ""
+        while True:
+            if jp >= len(star[i]):
+                i += 1
+                jp = 0
+                j = 0
+            if i >= len(star):
+                return
+            next = star[i][jp]
+            jp += 1
+            s += next
+            if not invisible(next):
+                break
+        s = color_func(s, c1, c2, c3)
+        scape[wrap_y(y+i)][wrap_x(x+j)] = [s]
+        j += 1
 
 
-def colorize(scape):
-    s2=""
-    for i, x in enumerate(scape):
-        if x == "|":
-            s2 += reset + x
-        elif x != " ":
-            s2 += rand_color() + x
-        else:
-            s2 += x
-    # for s in (stars_1, stars_2, stars_3):
-    #     for x in s:
-    #         for row in x:
-    #             for col in row:
-    #                 c1 = rand_color()
-    #                 scape = scape.replace(col,c1+col)
-    return s2
-def main(count=100):
+def main(count=200):
     for x in xrange(0, count):
         x, y = (randint(0, X), randint(0, Y))
         star = get_star()
         add_star(x, y, star)
 
+    add_star(2, 8, ship, colorize_ship)
+    add_star(width - 52, 2, north, colorize_north)
+    add_star(width -19, 2, stars_3[3])
     print border_top(".","=")
-    print colorize(print_scape(scape))
+    # print scape
+    print print_scape(scape)
     print border_top(":","=")
+    print "| " + sys_info().ljust(width - 3, " ") + "|"
     print border_top("'","=")
-    print fg['red']+"that's all folks!"+reset
-
 if __name__ == "__main__":
     main()
